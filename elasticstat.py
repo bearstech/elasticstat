@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# encoding:utf8
 
 import socket
 import json
@@ -70,6 +71,6 @@ if __name__ == '__main__':
         host = 'localhost'
     r = redis.StrictRedis(host=host, port=6379, db=0)
     for event in TrackBulkSize(EventsHose(r)):
-        print "{ts} {agent} {source} {code} {method} {responsetime} \
-{request_len} {response_len} {index} {bulk_size} {bulk_errors} \
-{uri}".format(**event)
+        print "{agent} {ts} {source} {responsetime} ms \
+⬆︎ {request_len} bytes ⬇︎ {response_len} bytes {index} {bulk_size} {bulk_errors}☠ \
+[{code} {method} {uri}]".format(**event)
