@@ -13,10 +13,13 @@ Elasticsearch talks JSON over HTTP, nothing too hard to steal.
 The configuration is simple, you can remove most of options, and just keep
 redis output and http listening on port 9200.
 
-    [output.redis]
-        enabled = true
-        host = "somewher"
-        port = 6379
+    [output]
+        [output.elasticsearch]
+            enabled = false
+        [output.redis]
+            enabled = true
+            host = "somewhere"
+            port = 6379
     [protocols]
         [protocols.http]
         ports = [9200]
