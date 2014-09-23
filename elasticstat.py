@@ -14,6 +14,7 @@ class Statsite(object):
 
 
 class EventsHose(object):
+    "Source of events"
     def __init__(self, redis_connection, chan='packetbeat'):
         self.r = redis_connection
         self.chan = chan
@@ -26,6 +27,7 @@ class EventsHose(object):
 
 
 class TrackBulkSize(object):
+    "Iterator for tracking bulks, their sizes, their errors."
     def __init__(self, events):
         self.events = events
 
@@ -47,25 +49,18 @@ class TrackBulkSize(object):
             code = packet['http']['response']['code']
             ts = packet['@timestamp']
             if path == '/_bulk':
-                #print json.dumps(packet, indent=2)
-
-                #header, body = packet['request_raw'].split('\r\n\r\n', 1)
-                #print (len(body.split('\n'))-1)/2
-
                 header, body = packet['response_raw'].split('\r\n\r\n', 1)
                 response = json.loads(body)
-                errors = len([a for a in response['items'] if 'error' in a.values()[0]])
+                errors = len([a for a in response['items']
+                              if 'error' in a.values()[0]])
                 idx = response['items'][0].values()[0]['_index']
 
-                #print errors, len(response['items'])
-                #print response
                 yield dict(agent=agent, ts=ts, source=src_ip, code=code,
                            method=method, responsetime=responsetime,
                            request_len=request_len, response_len=response_len,
                            index=idx, bulk_size=len(response['items']),
                            bulk_errors=errors, uri=uri)
 
-            #print agent, ts, src_ip, code, method, responsetime, 'ms', request_len, 'bytes', response_len, 'bytes', uri
 
 if __name__ == '__main__':
     import sys
