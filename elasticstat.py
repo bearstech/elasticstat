@@ -5,8 +5,12 @@ import json
 
 import redis
 
-stat = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#stat.connect(('localhost', 8125))
+
+class Statsite(object):
+    "Statsite client, it's just statd with TCP connection"
+    def __init__(self, host='localhost', port=8125):
+        self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.conn.connect(('localhost', 8125))
 
 
 class EventsHose(object):
