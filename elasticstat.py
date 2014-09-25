@@ -14,6 +14,78 @@ class Statsite(object):
         self.conn.connect(('localhost', 8125))
 
 
+class Event(object):
+    def __init__(self, raw):
+        self.raw = raw
+        self.timestamp = raw['@timestamp']
+        self.responsetime = raw['responsetime']
+        self.src_ip = raw['src_ip']
+        self.agent = raw['agent']
+
+    @property
+    def http(self):
+        if self.raw['http'] is None:
+            return None
+        return Http(self.raw)
+
+
+class Http(object):
+    def __init__(self, raw):
+        self.raw = raw
+        self.request = HttpRequest(self.raw['http'], self.raw['request_raw'])
+        self.response = HttpResponse(self.raw['http'], self.raw['response_raw'])
+
+
+class HttpRequest(object):
+    def __init__(self, http, raw):
+        self.raw = raw
+        self.host = http['host']
+        self.uri = http['request']['uri']
+        self.method = http['request']['method']
+        s = self.uri.split('?')
+        if len(s) > 1:
+            self.arguments = s[1]
+        else:
+            self.arguments = None
+        self.path = s[0]
+
+    def __len__(self):
+        return len(self.raw)
+
+
+class HttpResponse(object):
+    def __init__(self, http, raw):
+        self.raw = raw
+        self.code = http['response']['code']
+        self._header = None
+        self._body = None
+        self._json = None
+
+    def _parse(self):
+        self._header, self._body = self.raw.split('\r\n\r\n', 1)
+
+    def __len__(self):
+        return len(self.raw)
+
+    @property
+    def body(self):
+        if self._body is None:
+            self._parse()
+        return self._body
+
+    @property
+    def header(self):
+        if self._header is None:
+            self._parse()
+        return self._header
+
+    @property
+    def json(self):
+        if self._json is None:
+            self._json = json.loads(self.body)
+        return self._json
+
+
 class EventsHose(object):
     "Source of events"
     def __init__(self, redis_connection, chan='packetbeat'):
@@ -24,7 +96,7 @@ class EventsHose(object):
         while True:
             chan, packet = r.blpop('packetbeat')
             packet = json.loads(packet)
-            yield packet
+            yield Event(packet)
 
 
 class TrackBulkSize(object):
@@ -33,34 +105,22 @@ class TrackBulkSize(object):
         self.events = events
 
     def __iter__(self):
-        for packet in self.events:
-            if packet['http'] is None:
-                    continue
-            content_length = packet['http']['content_length']
-            responsetime = packet['responsetime']
-            agent = packet['agent']
-            host = packet['http']['host']
-            request_len = len(packet['request_raw'])
-            response_len = len(packet['response_raw'])
-            uri = packet['http']['request']['uri']
-            s = uri.split('?')
-            path = s[0]
-            method = packet['http']['request']['method']
-            src_ip = packet['src_ip']
-            code = packet['http']['response']['code']
-            ts = packet['@timestamp']
-            if path == '/_bulk':
-                header, body = packet['response_raw'].split('\r\n\r\n', 1)
-                response = json.loads(body)
-                errors = len([a for a in response['items']
+        for event in self.events:
+            if event.http is None:
+                continue
+            if event.http.request.path == '/_bulk':
+                errors = len([a for a in event.http.response.json['items']
                               if 'error' in a.values()[0]])
-                idx = response['items'][0].values()[0]['_index']
+                idx = event.http.response.json['items'][0].values()[0]['_index']
 
-                yield dict(agent=agent, ts=ts, source=src_ip, code=code,
-                           method=method, responsetime=responsetime,
-                           request_len=request_len, response_len=response_len,
-                           index=idx, bulk_size=len(response['items']),
-                           bulk_errors=errors, uri=uri)
+                yield dict(agent=event.agent, ts=event.timestamp,
+                           source=event.src_ip, code=event.http.response.code,
+                           method=event.http.response.method,
+                           responsetime=event.responsetime, index=idx,
+                           request_len=len(event.http.request),
+                           response_len=len(event.http.response),
+                           bulk_size=len(event.http.response.json['items']),
+                           bulk_errors=errors, uri=event.http.request.uri)
 
 
 if __name__ == '__main__':
@@ -72,5 +132,5 @@ if __name__ == '__main__':
     r = redis.StrictRedis(host=host, port=6379, db=0)
     for event in TrackBulkSize(EventsHose(r)):
         print "{agent} {ts} {source} {responsetime} ms \
-⬆︎ {request_len} bytes ⬇︎ {response_len} bytes {index} {bulk_size} {bulk_errors}☠ \
-[{code} {method} {uri}]".format(**event)
+⬆︎ {request_len} bytes ⬇︎ {response_len} bytes {index} {bulk_size} \
+{bulk_errors}☠ [{code} {method} {uri}]".format(**event)
