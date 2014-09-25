@@ -99,28 +99,39 @@ class EventsHose(object):
             yield Event(packet)
 
 
-class TrackBulkSize(object):
-    "Iterator for tracking bulks, their sizes, their errors."
+class Filter(object):
     def __init__(self, events):
         self.events = events
+
+
+class BulkFilter(Filter):
+    def bulk(self, event):
+        raise NotImplementedError()
 
     def __iter__(self):
         for event in self.events:
             if event.http is None:
                 continue
             if event.http.request.path == '/_bulk':
-                errors = len([a for a in event.http.response.json['items']
-                              if 'error' in a.values()[0]])
-                idx = event.http.response.json['items'][0].values()[0]['_index']
+                yield self.bulk(event)
 
-                yield dict(agent=event.agent, ts=event.timestamp,
-                           source=event.src_ip, code=event.http.response.code,
-                           method=event.http.response.method,
-                           responsetime=event.responsetime, index=idx,
-                           request_len=len(event.http.request),
-                           response_len=len(event.http.response),
-                           bulk_size=len(event.http.response.json['items']),
-                           bulk_errors=errors, uri=event.http.request.uri)
+
+class TrackBulkSize(BulkFilter):
+    "Iterator for tracking bulks, their sizes, their errors."
+
+    def bulk(self, event):
+        errors = len([a for a in event.http.response.json['items']
+                      if 'error' in a.values()[0]])
+        idx = event.http.response.json['items'][0].values()[0]['_index']
+
+        return dict(agent=event.agent, ts=event.timestamp,
+                    source=event.src_ip, code=event.http.response.code,
+                    method=event.http.request.method,
+                    responsetime=event.responsetime, index=idx,
+                    request_len=len(event.http.request),
+                    response_len=len(event.http.response),
+                    bulk_size=len(event.http.response.json['items']),
+                    bulk_errors=errors, uri=event.http.request.uri)
 
 
 if __name__ == '__main__':
