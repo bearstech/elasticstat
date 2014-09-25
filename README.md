@@ -43,8 +43,8 @@ The library provides an iterator flooding events. Just filter them and count.
 
 Read the source. It's short, documented, with an example.
 
-Futur
------
+Future
+------
 
  * More ready to use bug pattern.
  * Counting with statsd and graphite.
