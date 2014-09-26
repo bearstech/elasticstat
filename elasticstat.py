@@ -113,7 +113,10 @@ class BulkFilter(Filter):
             if event.http is None:
                 continue
             if event.http.request.path == '/_bulk':
-                yield self.bulk(event)
+                e = self.bulk(event)
+                if e is not None:
+                    for b in e:
+                        yield b
 
 
 class TrackBulkSize(BulkFilter):
@@ -124,24 +127,47 @@ class TrackBulkSize(BulkFilter):
                       if 'error' in a.values()[0]])
         idx = event.http.response.json['items'][0].values()[0]['_index']
 
-        return dict(agent=event.agent, ts=event.timestamp,
-                    source=event.src_ip, code=event.http.response.code,
-                    method=event.http.request.method,
-                    responsetime=event.responsetime, index=idx,
-                    request_len=len(event.http.request),
-                    response_len=len(event.http.response),
-                    bulk_size=len(event.http.response.json['items']),
-                    bulk_errors=errors, uri=event.http.request.uri)
+        yield dict(agent=event.agent, ts=event.timestamp,
+                   source=event.src_ip, code=event.http.response.code,
+                   method=event.http.request.method,
+                   responsetime=event.responsetime, index=idx,
+                   request_len=len(event.http.request),
+                   response_len=len(event.http.response),
+                   bulk_size=len(event.http.response.json['items']),
+                   bulk_errors=errors, uri=event.http.request.uri)
+
+
+class TrackBulkError(BulkFilter):
+
+    def bulk(self, event):
+        for item in event.http.response.json['items']:
+            action, info = item.items()[0]
+            if 'error' in info:
+                yield event, info
 
 
 if __name__ == '__main__':
     import sys
-    if len(sys.argv) > 1:
-        host = sys.argv[1]
+    args = sys.argv
+    args.reverse()
+    args.pop()
+    if len(args):
+        action = args.pop()
+    else:
+        action = 'bulksize'
+    if len(args):
+        host = args.pop()
     else:
         host = 'localhost'
     r = redis.StrictRedis(host=host, port=6379, db=0)
-    for event in TrackBulkSize(EventsHose(r)):
-        print "{agent} {ts} {source} {responsetime} ms \
+    if action == 'bulksize':
+        for event in TrackBulkSize(EventsHose(r)):
+            print "{agent} {ts} {source} {responsetime} ms \
 ⬆︎ {request_len} bytes ⬇︎ {response_len} bytes {index} {bulk_size} \
 {bulk_errors}☠ [{code} {method} {uri}]".format(**event)
+    if action == 'bulkerrors':
+        for event, error in TrackBulkError(EventsHose(r)):
+            print "{agent} {ts} {source} ".format(agent=event.agent,
+                                                  ts=event.timestamp,
+                                                  source=event.src_ip),
+            print "{status} {_index} {_type} {_id} : {error}".format(**error)
