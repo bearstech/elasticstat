@@ -146,6 +146,20 @@ class TrackBulkError(BulkFilter):
                 yield event, info
 
 
+class TrackSlowSearch(object):
+
+    def __init__(self, events, *index):
+        self.events = events
+        self.index = index
+
+    def __iter__(self):
+        for event in self.events:
+            slugs = event.http.request.path.split('/')
+            if slugs[-1] != '_search':
+                continue
+            yield event.responsetime, slugs
+
+
 if __name__ == '__main__':
     import sys
     args = sys.argv
@@ -171,3 +185,6 @@ if __name__ == '__main__':
                                                   ts=event.timestamp,
                                                   source=event.src_ip),
             print "{status} {_index} {_type} {_id} : {error}".format(**error)
+    if action == 'slowsearch':
+        for event in TrackSlowSearch(EventsHose(r)):
+            print event
