@@ -154,10 +154,10 @@ class TrackSlowSearch(object):
 
     def __iter__(self):
         for event in self.events:
-            slugs = event.http.request.path.split('/')
+            slugs = event.http.request.path.split('/')[1:]
             if slugs[-1] != '_search':
                 continue
-            yield event.responsetime, slugs
+            yield event.timestamp, event.responsetime, slugs[:-1]
 
 
 if __name__ == '__main__':
@@ -186,5 +186,5 @@ if __name__ == '__main__':
                                                   source=event.src_ip),
             print "{status} {_index} {_type} {_id} : {error}".format(**error)
     if action == 'slowsearch':
-        for event in TrackSlowSearch(EventsHose(r)):
-            print event
+        for ts, rt, slugs in TrackSlowSearch(EventsHose(r)):
+            print "{ts};{rt};{slugs}".format(ts=ts, rt=rt, slugs=";".join(slugs))
