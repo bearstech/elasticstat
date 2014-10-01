@@ -186,5 +186,16 @@ if __name__ == '__main__':
                                                   source=event.src_ip),
             print "{status} {_index} {_type} {_id} : {error}".format(**error)
     if action == 'slowsearch':
+        output = None
+        last = None
         for ts, rt, slugs in TrackSlowSearch(EventsHose(r)):
-            print "{ts};{rt};{slugs}".format(ts=ts, rt=rt, slugs=";".join(slugs))
+            if last is None or last != ts[:10]:
+                last = ts[:10]
+                if output is not None:
+                    output.close()
+                output = open('slow-{ts}.csv'.format(ts=ts[:10]), 'a')
+            line = "{ts};{rt};{slugs}".format(ts=ts, rt=rt,
+                                              slugs=";".join(slugs))
+            output.write(line)
+            output.write('\n')
+            print line
