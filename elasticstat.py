@@ -48,6 +48,7 @@ class HttpRequest(object):
         else:
             self.arguments = None
         self.path = s[0]
+        self.header, self.body = self.raw.split('\r\n\r\n', 1)
 
     def __len__(self):
         return len(self.raw)
@@ -133,7 +134,7 @@ class TrackBulkSize(BulkFilter):
                    responsetime=event.responsetime, index=idx,
                    request_len=len(event.http.request),
                    response_len=len(event.http.response),
-                   bulk_size=len(event.http.response.json['items']),
+                   bulk_size=len(event.http.request.body.split('\n')),
                    bulk_errors=errors, uri=event.http.request.uri)
 
 
