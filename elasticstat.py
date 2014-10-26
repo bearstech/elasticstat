@@ -174,6 +174,20 @@ class TrackSlowSearch(object):
             yield event.timestamp, event.responsetime, slugs[:-1]
 
 
+class TrackUsers(object):
+
+    def __init__(self, events):
+        self.events = events
+
+    def __iter__(self):
+        for event in self.events:
+            if event.http is None:
+                continue
+            yield event.timestamp, event.agent, event.responsetime, '%s:%i' % (event.raw['src_ip'], event.raw['src_port']), \
+                '%s:%i' % (event.raw['dst_ip'], event.raw['dst_port']), \
+                event.http.request.header.get('user-agent', ''), \
+                event.http.request.method, event.http.request.uri
+
 if __name__ == '__main__':
     import sys
     args = sys.argv
@@ -213,3 +227,6 @@ if __name__ == '__main__':
             output.write(line)
             output.write('\n')
             print line
+    if action == 'users':
+        for a in TrackUsers(EventsHose(r)):
+            print " ".join([str(b) for b in a])
