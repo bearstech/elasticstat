@@ -36,6 +36,14 @@ class Http(object):
         self.response = HttpResponse(self.raw['http'], self.raw['response_raw'])
 
 
+def parse_headers(raw):
+    d = {}
+    for line in raw.split('\r\n')[1:]:
+        k, v = line.split(': ', 1)
+        d[k.lower()] = v
+    return d
+
+
 class HttpRequest(object):
     def __init__(self, http, raw):
         self.raw = raw
@@ -49,6 +57,7 @@ class HttpRequest(object):
             self.arguments = None
         self.path = s[0]
         self.header, self.body = self.raw.split('\r\n\r\n', 1)
+        self.header = parse_headers(self.header)
 
     def __len__(self):
         return len(self.raw)
