@@ -43,6 +43,27 @@ The library provides an iterator flooding events. Just filter them and count.
 
 Read the source. It's short, documented, with an example.
 
+Pubsub messages, not queue
+--------------------------
+
+For now, packetbeat sends messages to a Redis queue (a LIST).
+Logstash can handle both queue and pubsub, I made a
+[patch for Packetbeat to PUBLISHing message](https://github.com/packetbeat/packetbeat/pull/70)
+, not released yet.
+
+@pop2publish.py@ is quick hack for BLPOPping a list, and PUBLISHing it.
+
+With supervisor to managing it :
+
+    [program:pop2publish]
+    command=/usr/bin/python /opt/elasticstat/pop2publish.py REDIS_IP
+    directory=/opt/elasticstat
+    user=nobody
+    autostart=true
+    autorestart=true
+
+Now, you can run multiple analysis tools, hacking, braking stuff, and still get long running analysis.
+
 Future
 ------
 

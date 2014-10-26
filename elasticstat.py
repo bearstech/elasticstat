@@ -98,14 +98,18 @@ class HttpResponse(object):
 
 class EventsHose(object):
     "Source of events"
-    def __init__(self, redis_connection, chan='packetbeat'):
+    def __init__(self, redis_connection, chan='/packetbeat/*'):
         self.r = redis_connection
         self.chan = chan
 
     def __iter__(self):
+        pubsub = self.r.pubsub()
+        pubsub.psubscribe(self.chan)
         while True:
-            chan, packet = r.blpop('packetbeat')
-            packet = json.loads(packet)
+            msg = pubsub.get_message()
+            if msg is None or msg['type'] not in {'message', 'pmessage'}:
+                continue
+            packet = json.loads(msg['data'])
             yield Event(packet)
 
 
