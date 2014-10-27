@@ -3,8 +3,20 @@
 
 import socket
 import json
+import re
 
 import redis
+
+
+SLASHSLASH = re.compile('/+')
+
+
+def split_slugs(uri):
+    slugs = SLASHSLASH.split(uri)
+    for a in [0, -1]:
+        if not len(slugs[a]):
+            del slugs[a]
+    return slugs
 
 
 class Statsite(object):
@@ -51,6 +63,7 @@ class HttpRequest(object):
         self.uri = http['request']['uri']
         self.method = http['request']['method']
         s = self.uri.split('?')
+        self.path = s[0]
         if len(s) > 1:
             self.arguments = s[1]
         else:
@@ -183,10 +196,17 @@ class TrackUsers(object):
         for event in self.events:
             if event.http is None:
                 continue
+            slugs = split_slugs(event.http.request.path)
+            action = "?"
+            if len(slugs) > 0:
+                if slugs[-1][0] == '_':
+                    action = slugs[-1][1:]
+                elif slugs[0][0] == '_':
+                    action = slugs[0][1:]
             yield event.timestamp, event.agent, event.responsetime, '%s:%i' % (event.raw['src_ip'], event.raw['src_port']), \
                 '%s:%i' % (event.raw['dst_ip'], event.raw['dst_port']), \
-                event.http.request.header.get('user-agent', ''), \
-                event.http.request.method, event.http.request.uri
+                '[%s]' % event.http.request.header.get('user-agent', ''), \
+                event.http.request.method, action, event.http.request.uri
 
 if __name__ == '__main__':
     import sys
