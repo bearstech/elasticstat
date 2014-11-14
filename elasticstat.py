@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # encoding:utf8
+import gevent.monkey
+gevent.monkey.patch_all()
 
 import socket
 import json
@@ -111,7 +113,7 @@ class HttpResponse(object):
 
 class EventsHose(object):
     "Source of events"
-    def __init__(self, redis_connection, chan='/packetbeat/*'):
+    def __init__(self, redis_connection, chan='packetbeat/*'):
         self.r = redis_connection
         self.chan = chan
 
@@ -221,9 +223,14 @@ if __name__ == '__main__':
         host = args.pop()
     else:
         host = 'localhost'
+    if len(args):
+        chan = args.pop()
+    else:
+        chan = 'packetbeat/*'
+    print("host", host, chan)
     r = redis.StrictRedis(host=host, port=6379, db=0)
     if action == 'bulksize':
-        for event in TrackBulkSize(EventsHose(r)):
+        for event in TrackBulkSize(EventsHose(r, chan)):
             print "{agent} {ts} {source} {responsetime} ms \
 ⬆︎ {request_len} bytes ⬇︎ {response_len} bytes {index} {bulk_size} \
 {bulk_errors}☠ [{code} {method} {uri}]".format(**event)
@@ -236,7 +243,7 @@ if __name__ == '__main__':
     if action == 'slowsearch':
         output = None
         last = None
-        for ts, rt, slugs in TrackSlowSearch(EventsHose(r)):
+        for ts, rt, slugs in TrackSlowSearch(EventsHose(r, chan)):
             if last is None or last != ts[:10]:
                 last = ts[:10]
                 if output is not None:
@@ -248,5 +255,5 @@ if __name__ == '__main__':
             output.write('\n')
             print line
     if action == 'users':
-        for a in TrackUsers(EventsHose(r)):
+        for a in TrackUsers(EventsHose(r, chan)):
             print " ".join([str(b) for b in a])
