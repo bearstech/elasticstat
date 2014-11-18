@@ -210,10 +210,17 @@ class TrackUsers(object):
                     action = slugs[-1][1:]
                 elif slugs[0][0] == '_':
                     action = slugs[0][1:]
+            if action == "bulk":
+                bulk_size = event.http.request.body.count('\n') + 1
+            else:
+                bulk_size = 0
+            request_len = len(event.http.request)
+            response_len = len(event.http.response)
             yield event.timestamp, event.agent, event.responsetime, '%s:%i' % (event.raw['src_ip'], event.raw['src_port']), \
                 '%s:%i' % (event.raw['dst_ip'], event.raw['dst_port']), \
                 '[%s]' % event.http.request.header.get('user-agent', ''), \
-                event.http.request.method, action, event.http.request.uri
+                event.http.request.method, action, event.http.request.uri, \
+                bulk_size, request_len, response_len
 
 if __name__ == '__main__':
     import sys
