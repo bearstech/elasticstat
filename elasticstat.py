@@ -6,11 +6,15 @@ gevent.monkey.patch_all()
 import socket
 import json
 import re
+import logging
+import logging.handlers
 
 import redis
 
 
 SLASHSLASH = re.compile('/+')
+
+logger = logging.getLogger(__name__)
 
 
 def split_slugs(uri):
@@ -255,5 +259,9 @@ if __name__ == '__main__':
             output.write('\n')
             print line
     if action == 'users':
+        logger.setLevel(logging.INFO)
+        handler = logging.handlers.TimedRotatingFileHandler('users.log', when='D', interval=1)
+        handler.setLevel(logging.INFO)
+        logger.addHandler(handler)
         for a in TrackUsers(EventsHose(r, chan)):
-            print " ".join([str(b) for b in a])
+            logger.info(" ".join([str(b) for b in a]))
