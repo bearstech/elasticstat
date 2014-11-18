@@ -10,6 +10,7 @@ import logging
 import logging.handlers
 
 import redis
+from statsd import StatsClient
 
 
 SLASHSLASH = re.compile('/+')
@@ -263,5 +264,9 @@ if __name__ == '__main__':
         handler = logging.handlers.TimedRotatingFileHandler('users.log', when='D', interval=1)
         handler.setLevel(logging.INFO)
         logger.addHandler(handler)
+        statsd = StatsClient('localhost', 8125)
         for a in TrackUsers(EventsHose(r, chan)):
+            t = a[2]
+            action = a[7]
+            statsd.timing('action.%s' % action, int(t))
             logger.info(" ".join([str(b) for b in a]))
