@@ -11,7 +11,7 @@ import logging
 import logging.handlers
 from pprint import pprint
 
-
+import yaml
 import redis
 from statsd import StatsClient
 from raven import Client as Raven
@@ -21,6 +21,7 @@ from error import parseElasticsearchError
 
 
 SLASHSLASH = re.compile('/+')
+UNQUOTE = re.compile("'([^ \{\}\[\]<>\n]+?)'")
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,11 @@ class HttpRequest(object):
         self.path = s[0]
         self.header, self.body = self.raw.split('\r\n\r\n', 1)
         self.header = parse_headers(self.header)
+
+
+    @property
+    def json(self):
+        return json.loads(self.body)
 
     def __len__(self):
         return len(self.raw)
@@ -241,7 +247,7 @@ class TrackErrors(object):
     def __iter__(self):
         for event in self.events:
             if event.http is not None and event.http.response.code >= 400:
-                yield event.http.response.json
+                yield event.http.request.json, event.http.response.json
 
 if __name__ == '__main__':
     import sys
@@ -300,9 +306,11 @@ if __name__ == '__main__':
             logger.info(" ".join([str(b) for b in a]))
     if action == 'errors':
         hose = EventsHose(r, chan)
-        for message in TrackErrors(hose):
+        dumper = yaml.Dumper
+        for query, message in TrackErrors(hose):
             status = message['status']
             print status
+            print UNQUOTE.subn(r"\1", yaml.dump(query, allow_unicode=True, default_flow_style=False).replace('!!python/unicode ', ''))[0]
             error = message['error']
             pprint(parseElasticsearchError(error))
 
