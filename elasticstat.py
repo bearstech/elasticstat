@@ -129,6 +129,7 @@ class EventsHose(object):
     def __init__(self, redis_connection, chan='packetbeat/*'):
         self.r = redis_connection
         self.chan = chan
+        assert self.r.ping()
 
     def __iter__(self):
         pubsub = self.r.pubsub()
@@ -138,8 +139,9 @@ class EventsHose(object):
             if msg is None:
                 time.sleep(0.1)
                 continue
-            packet = json.loads(msg['data'])
-            yield Event(packet)
+            if msg['type'] in {'message', 'pmessage'}:
+                packet = json.loads(msg['data'])
+                yield Event(packet)
 
 
 class Filter(object):
