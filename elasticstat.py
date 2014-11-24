@@ -6,17 +6,25 @@ gevent.monkey.patch_all()
 import socket
 import json
 import re
+import time
 import logging
 import logging.handlers
+from pprint import pprint
+
 
 import redis
 from statsd import StatsClient
+from raven import Client as Raven
+
+
+from error import parseElasticsearchError
 
 
 SLASHSLASH = re.compile('/+')
 
 logger = logging.getLogger(__name__)
 
+raven = Raven()
 
 def split_slugs(uri):
     slugs = SLASHSLASH.split(uri)
@@ -127,7 +135,8 @@ class EventsHose(object):
         pubsub.psubscribe(self.chan)
         while True:
             msg = pubsub.get_message()
-            if msg is None or msg['type'] not in {'message', 'pmessage'}:
+            if msg is None:
+                time.sleep(0.1)
                 continue
             packet = json.loads(msg['data'])
             yield Event(packet)
@@ -222,6 +231,16 @@ class TrackUsers(object):
                 event.http.request.method, action, event.http.request.uri, \
                 bulk_size, request_len, response_len
 
+
+class TrackErrors(object):
+    def __init__(self, events):
+        self.events = events
+
+    def __iter__(self):
+        for event in self.events:
+            if event.http is not None and event.http.response.code >= 400:
+                yield event.http.response.json
+
 if __name__ == '__main__':
     import sys
     args = sys.argv
@@ -277,3 +296,11 @@ if __name__ == '__main__':
             action = a[7]
             statsd.timing('action.%s' % action, int(t))
             logger.info(" ".join([str(b) for b in a]))
+    if action == 'errors':
+        hose = EventsHose(r, chan)
+        for message in TrackErrors(hose):
+            status = message['status']
+            print status
+            error = message['error']
+            pprint(parseElasticsearchError(error))
+
