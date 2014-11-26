@@ -252,7 +252,7 @@ class TrackErrors(object):
                            url=rq.path,
                            query_string=rq.arguments,
                            headers=rq.header),
-                       event.http.request.json,
+                       event.http.request.json, #[FIXME] handling mjson bulk
                        event.http.response.json,
                        event.timestamp)
 
