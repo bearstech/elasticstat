@@ -253,7 +253,8 @@ class TrackErrors(object):
                            query_string=rq.arguments,
                            headers=rq.header),
                        event.http.request.json,
-                       event.http.response.json)
+                       event.http.response.json,
+                       event.timestamp)
 
 
 if __name__ == '__main__':
@@ -314,7 +315,7 @@ if __name__ == '__main__':
     if action == 'errors':
         hose = EventsHose(r, chan)
         dumper = yaml.Dumper
-        for rq, query, message in TrackErrors(hose):
+        for rq, query, message, ts in TrackErrors(hose):
             status = message['status']
             print status
             request = UNQUOTE.subn(r"\1", yaml.dump(query, allow_unicode=True,
