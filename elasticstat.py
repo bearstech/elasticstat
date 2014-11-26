@@ -247,7 +247,14 @@ class TrackErrors(object):
     def __iter__(self):
         for event in self.events:
             if event.http is not None and event.http.response.code >= 400:
-                yield event.http.request.json, event.http.response.json
+                rq = event.http.request
+                yield (dict(method=rq.method,
+                           url=rq.path,
+                           query_string=rq.arguments,
+                           headers=rq.header),
+                       event.http.request.json,
+                       event.http.response.json)
+
 
 if __name__ == '__main__':
     import sys
@@ -307,10 +314,23 @@ if __name__ == '__main__':
     if action == 'errors':
         hose = EventsHose(r, chan)
         dumper = yaml.Dumper
-        for query, message in TrackErrors(hose):
+        for rq, query, message in TrackErrors(hose):
             status = message['status']
             print status
-            print UNQUOTE.subn(r"\1", yaml.dump(query, allow_unicode=True, default_flow_style=False).replace('!!python/unicode ', ''))[0]
-            error = message['error']
-            pprint(parseElasticsearchError(error))
+            request = UNQUOTE.subn(r"\1", yaml.dump(query, allow_unicode=True,
+                                                    default_flow_style=False).replace('!!python/unicode ', ''))[0]
+            rq['data'] = dict(query=query)
+            error = parseElasticsearchError(message['error'])
+            exceptions = set()
+            indices = set()
+            for i, s in error['exceptions'].items():
+                indices.add(i.split('][')[1])
+                for ex, _ in s:
+                    exceptions.add(ex)
+            pprint(error)
+            print indices
+            print exceptions
+            exception=dict(type=error['name'],
+                           value=error['description'],
+                           stacktrace=error['exceptions'])
 
