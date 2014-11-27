@@ -322,7 +322,7 @@ if __name__ == '__main__':
                                                     default_flow_style=False).replace('!!python/unicode ', ''))[0]
             rq['data'] = dict(query=query)
             error = parseElasticsearchError(message['error'])
-            exceptions = set()
+            exceptions = set((error['name'],))
             indices = set()
             for i, s in error['exceptions'].items():
                 indices.add(i.split('][')[1])
