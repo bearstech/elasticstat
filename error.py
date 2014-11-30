@@ -20,9 +20,9 @@ def parseElasticsearchError(raw):
             for n in s.group('detail').split('; nested: '):
                 nname, ndetail = n.split('[', 1)
                 if nname not in boring_exceptions:
-                    r['exceptions'][k].append((nname, ndetail[:-1]))
+                    r['exceptions'][k].append({nname: ndetail[:-1]})
     else:
-        r['detail'] = blob[:-1]
+        r['description'] = blob[:-1]
     return r
 
 
