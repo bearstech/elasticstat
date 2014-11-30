@@ -249,12 +249,16 @@ class TrackErrors(object):
             if event.http is not None and event.http.response.code >= 400:
                 rq = event.http.request
                 yield (dict(method=rq.method,
-                           url=rq.path,
-                           query_string=rq.arguments,
-                           headers=rq.header),
+                            url="http://%s%s" % (rq.host, rq.path),
+                            query_string=rq.arguments,
+                            headers=rq.header),
                        event.http.request.json, #[FIXME] handling mjson bulk
                        event.http.response.json,
-                       event.timestamp)
+                       event.responsetime,
+                       event.agent,
+                       event.raw['src_ip'],
+                       event.http.request.body
+                       )
 
 
 if __name__ == '__main__':
@@ -313,25 +317,47 @@ if __name__ == '__main__':
             statsd.timing('action.%s' % action, int(t))
             logger.info(" ".join([str(b) for b in a]))
     if action == 'errors':
+        log = logging.getLogger('raven')
+        log.setLevel(logging.DEBUG)
+        handler = logging.handlers.TimedRotatingFileHandler('raven.log', when='D', interval=1)
+        handler.setLevel(logging.DEBUG)
+        log.addHandler(handler)
         hose = EventsHose(r, chan)
         dumper = yaml.Dumper
-        for rq, query, message, ts in TrackErrors(hose):
+        for rq, query, message, ts, agent, source, body in TrackErrors(hose):
             status = message['status']
             print status
             request = UNQUOTE.subn(r"\1", yaml.dump(query, allow_unicode=True,
                                                     default_flow_style=False).replace('!!python/unicode ', ''))[0]
-            rq['data'] = dict(query=query)
+            print request
+            rq['data'] = dict(body=body)
             error = parseElasticsearchError(message['error'])
             exceptions = set((error['name'],))
             indices = set()
+            last = None
             for i, s in error['exceptions'].items():
                 indices.add(i.split('][')[1])
-                for ex, _ in s:
-                    exceptions.add(ex)
+                last = s[-1].keys()[0]
+                for ex in s:
+                    exceptions.add(ex.keys()[0])
             pprint(error)
-            print indices
-            print exceptions
-            exception=dict(type=error['name'],
-                           value=error['description'],
-                           stacktrace=error['exceptions'])
+
+            exception = {'values': [{'type': error['name'],
+                                      'value': error['description']
+                                      }]}
+
+            raven.http_context(rq)
+            raven.tags_context(dict( agent=agent,
+                                    lastException=last
+                                    ))
+            raven.extra_context(dict(request=request,
+                                     stacktrace=error['exceptions'],
+                                     indices=list(indices),
+                                     source=source,
+                                     description=error['description']))
+            print raven.capture('raven.events.Exception', time_spent=ts,
+                                message="%s:%s" % (error['description'], last),
+                                culprit=error['name'],
+                                data=dict(exception=exception)
+                                )
 
